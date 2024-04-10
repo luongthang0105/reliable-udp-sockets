@@ -15,9 +15,9 @@ import sys
 import threading
 import time
 from dataclasses import dataclass
-import parser
+from arg_parser import ArgParser
 
-NUM_ARGS  = 3  # Number of command-line arguments
+NUM_ARGS  = 7  # Number of command-line arguments
 BUF_SIZE  = 3  # Size of buffer for receiving messages
 MAX_SLEEP = 2  # Max seconds to sleep before sending the next message
 
@@ -29,15 +29,15 @@ class Control:
     my_port: int        # Port number of the sender
     rcvr_port: int      # Port number of the receiver
     socket: socket.socket   # Socket for sending/receiving messages
-    run_time: int           # Run time in seconds
-    is_alive: bool = True   # Flag to signal the sender program to terminate
+    max_win: int        # max window size, should be the same for receiver side
+    is_connected: bool = False # a flag to signal successful connection or when to terminate
 
 
 # =====================Update setup_socket function ========================
-def setup_socket(my_port, rcvr_port,timeout=None):
+def setup_socket(sender_port, rcvr_port, timeout=None):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     # bind to sender port
-    sock.bind(('127.0.0.1', my_port))
+    sock.bind(('127.0.0.1', sender_port))
     # connect to peer's address
     sock.connect(('127.0.0.1', rcvr_port))
     if timeout is None:
@@ -99,28 +99,29 @@ if __name__ == "__main__":
     if len(sys.argv) != NUM_ARGS + 1:
         sys.exit(f"Usage: {sys.argv[0]} sender_port rcvr_port txt_file_to_send max_win rto flp rlp")
 
-    sender_port   = parser.parse_port(sys.argv[1])
-    rcvr_port = parser.parse_port(sys.argv[2])
-    txt_file_to_send = parser.parse_file_name(sys.argv[3])
-    max_win = parser.parse_max_win(sys.argv[4])
-    rto = parser.parse_rto(sys.argv[5])
-    flp = parser.parse_prop(sys.argv[6])
-    rlp = parser.parse_prop(sys.argv[7])
+    sender_port   = ArgParser.parse_port(sys.argv[1])
+    rcvr_port = ArgParser.parse_port(sys.argv[2])
+    txt_file_to_send = ArgParser.parse_file_name(sys.argv[3])
+    max_win = ArgParser.parse_max_win(sys.argv[4])
+    rto = ArgParser.parse_rto(sys.argv[5])
+    flp = ArgParser.parse_prop(sys.argv[6])
+    rlp = ArgParser.parse_prop(sys.argv[7])
+
 
     sock = setup_socket(sender_port, rcvr_port)
 
-
     # Create a control block for the sender program.
-    # control = Control(my_port, rcvr_port, sock, run_time)
+    control = Control(sender_port, rcvr_port, sock, max_win)
 
     # Start the receiver and timer threads.
-    # receiver = threading.Thread(target=recv_thread, args=(control,))
-    # receiver.start()
+    receiver = threading.Thread(target=recv_thread, args=(control,))
+    receiver.start()
 
     # timer = threading.Timer(run_time, timer_thread, args=(control,))
     # timer.start()
 
-    random.seed()  # Seed the random number generator
+    # Use a fixed seed for debugging purpose, NEED TO CHANGED BEFORE SUBMITTED
+    random.seed(1)  # Seed the random number generator
     
     # Send a sequence of random numbers as separate datagrams, until the 
     # timer expires.
@@ -142,7 +143,7 @@ if __name__ == "__main__":
     
     # Suspend execution here and wait for the threads to finish.
     receiver.join()
-    timer.cancel()
+    # timer.cancel()
 
     control.socket.close()  # Close the socket
 

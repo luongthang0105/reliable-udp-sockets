@@ -12,7 +12,7 @@
 
 import socket
 import sys
-import parser
+from arg_parser import ArgParser
 
 NUM_ARGS = 3  # Number of command-line arguments
 BUF_SIZE = 3  # Size of buffer for sending/receiving data
@@ -21,11 +21,11 @@ if __name__ == "__main__":
     if len(sys.argv) != NUM_ARGS + 1:
         sys.exit(f"Usage: {sys.argv[0]} rcvr_port sender_port txt_file_received max_win")
 
-    # ================== Update arguments =====================
-    rcvr_port = parser.parse_port(sys.argv[1]) 
-    sender_port = parser.parse_port(sys.argv[2])
+    # ================== Upasdasdasdate arguments =====================
+    rcvr_port = ArgParser.parse_port(sys.argv[1]) 
+    sender_port = ArgParser.parse_port(sys.argv[2])
     txt_file_received = sys.argv[3]
-    max_win = parser.parse_max_win(sys.argv[4])
+    max_win = ArgParser.parse_max_win(sys.argv[4])
 
     # ================== Update socket setup =====================
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
