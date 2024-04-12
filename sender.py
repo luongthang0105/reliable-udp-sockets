@@ -16,36 +16,68 @@ import threading
 import time
 from dataclasses import dataclass
 from arg_parser import ArgParser
+from stp_helpers import Stp
+from helpers import Helpers
 
 NUM_ARGS  = 7  # Number of command-line arguments
-BUF_SIZE  = 3  # Size of buffer for receiving messages
-MAX_SLEEP = 2  # Max seconds to sleep before sending the next message
+BUF_SIZE  = 1004  # Size of buffer for receiving messages
+MAX_SEQNO = 2**16 # Maximum sequence number
 
 @dataclass
 class Control:
     """Control block: parameters for the sender program."""
     # host: str               # Hostname or IP address of the receiver
     # ================== Update arguments =====================
-    my_port: int        # Port number of the sender
+    sender_port: int        # Port number of the sender
     rcvr_port: int      # Port number of the receiver
-    socket: socket.socket   # Socket for sending/receiving messages
     max_win: int        # max window size, should be the same for receiver side
+    rto: float          # retransmission time for a socket
+    seqno: int          # sequence number of sender socket
+    file_name: str      # name of file being sent
+    rlp: float          # probability of incoming packet being dropped
+    flp: float          # probability of sent packet being dropped
+    socket: socket.socket   # Socket for sending/receiving messages
     is_connected: bool = False # a flag to signal successful connection or when to terminate
 
 
 # =====================Update setup_socket function ========================
-def setup_socket(sender_port, rcvr_port, timeout=None):
+def setup_socket(sender_port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     # bind to sender port
     sock.bind(('127.0.0.1', sender_port))
-    # connect to peer's address
-    sock.connect(('127.0.0.1', rcvr_port))
-    if timeout is None:
-        sock.setblocking(True)
-    else:
-        sock.settimeout(timeout)
-
+    
     return sock
+
+# Enter SYN_SENT state by first send an SYN segment
+def state_syn_sent(control: Control):
+    try:
+        # Establish a connected UDP connection
+        control.socket.connect(('127.0.0.1', control.rcvr_port))
+        
+        # To make the connection "reliable", we perform a two-way handshake.
+        while not control.is_connected:
+            try:
+                # Create a STP segment
+                stp_segment = Stp.create_stp_segment(type=2, seqno=control.seqno)
+                # First send a SYN to signal establishment
+                control.socket.send(stp_segment)
+
+                # Set a timeout for next socket operation (i.e. recv())
+                # If it takes longer than "rto" for receiver to response,
+                # a TimeoutError will be raised.
+                control.socket.settimeout(control.rto)
+                ack = control.socket.recv(BUF_SIZE)
+
+            except Exception as e:
+                print(e)
+                continue
+            else:
+                control.is_connected = True
+            finally:
+                control.socket.settimeout(None)
+    except Exception as e:
+        sys.exit(f"Failed to connect to '127.0.0.1':{rcvr_port}: {e}")
+
 
 def recv_thread(control):
     """The receiver thread function.
@@ -107,11 +139,19 @@ if __name__ == "__main__":
     flp = ArgParser.parse_prop(sys.argv[6])
     rlp = ArgParser.parse_prop(sys.argv[7])
 
+    Helpers.reset_log('sender')
 
     sock = setup_socket(sender_port, rcvr_port)
 
+    # Use a fixed seed for debugging purpose, NEED TO CHANGED BEFORE SUBMITTED
+    random.seed(1)  # Seed the random number generator
+    isn = random.randrange(MAX_SEQNO)
+
     # Create a control block for the sender program.
-    control = Control(sender_port, rcvr_port, sock, max_win)
+    control = Control(sender_port=sender_port, rcvr_port=rcvr_port, 
+                      socket=sock, max_win=max_win, seqno=isn, rto=rto,
+                      file_name=txt_file_to_send, flp=flp, rlp=rlp)
+    state_syn_sent(control)
 
     # Start the receiver and timer threads.
     receiver = threading.Thread(target=recv_thread, args=(control,))
@@ -120,8 +160,6 @@ if __name__ == "__main__":
     # timer = threading.Timer(run_time, timer_thread, args=(control,))
     # timer.start()
 
-    # Use a fixed seed for debugging purpose, NEED TO CHANGED BEFORE SUBMITTED
-    random.seed(1)  # Seed the random number generator
     
     # Send a sequence of random numbers as separate datagrams, until the 
     # timer expires.
@@ -139,7 +177,7 @@ if __name__ == "__main__":
         # Sleep for a random amount of time before sending the next message.
         # This is ONLY done for the sake of the demonstration, it should be 
         # removed to maximise the efficiency of the sender.
-        time.sleep(random.uniform(0, MAX_SLEEP + 1))
+        # time.sleep(random.uniform(0, MAX_SLEEP + 1))
     
     # Suspend execution here and wait for the threads to finish.
     receiver.join()
