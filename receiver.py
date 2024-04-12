@@ -15,9 +15,12 @@ import sys
 from arg_parser import ArgParser
 from helpers import Helpers
 from enums import LogActions, SegmentType
+from stp_helpers import Stp
+
 
 NUM_ARGS = 4  # Number of command-line arguments
 BUF_SIZE = 1004  # Size of buffer for sending/receiving data
+MAX_SEQNO = 2**16 # Maximum sequence number
 
 if __name__ == "__main__":
     if len(sys.argv) != NUM_ARGS + 1:
@@ -38,10 +41,13 @@ if __name__ == "__main__":
 
         while True:
             receive = s.recv(BUF_SIZE)
-            segmentType = int.from_bytes(receive[:2], 'big')
+            segmentType, seqno, data = Stp.extract_stp_segment(receive)
 
             if segmentType == SegmentType.SYN:
                 seqno = int.from_bytes(receive[2:4], 'big')
                 # For SYN segment, add 1 to seqno
-                seqno += 1
+                seqno = Helpers.add_seqno(seqno, 1)
+
+                ack_response = Stp.create_stp_segment(SegmentType.ACK, seqno)
+
     sys.exit(0)
