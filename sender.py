@@ -39,6 +39,7 @@ class Control:
     flp: float          # probability of sent packet being dropped
     socket: socket.socket   # Socket for sending/receiving messages
     is_connected: bool = False # a flag to signal successful connection or when to terminate
+    start_time: float   # time in miliseconds at first sent segment
 
 
 # =====================Update setup_socket function ========================
@@ -55,6 +56,7 @@ def state_syn_sent(control: Control):
         # Establish a connected UDP connection
         control.socket.connect(('127.0.0.1', control.rcvr_port))
         
+        is_first_segment = True
         # To make the connection "reliable", we perform a two-way handshake.
         while not control.is_connected:
             try:
@@ -63,16 +65,23 @@ def state_syn_sent(control: Control):
                 # First send a SYN segment to signal establishment
                 control.socket.send(stp_segment)
 
+                if is_first_segment: 
+                    control.start_time = Helpers.get_time_mls()
+                    Helpers.log_message('sender', LogActions.SEND, 0.0, SegmentType.SYN, control.seqno, 0)
+                else:
+                    Helpers.log_message('sender', LogActions.SEND, control.start_time, SegmentType.SYN, control.seqno, 0)
+
+
                 # Set a timeout for next socket operation (i.e. recv())
                 # If it takes longer than "rto" for receiver to response,
                 # a TimeoutError will be raised.
                 control.socket.settimeout(control.rto)
                 
                 response = control.socket.recv(BUF_SIZE)
-                segtype = int.from_bytes(response, byteorder='big')
+                segtype, seqno, data = Stp.extract_stp_segment(response)
 
                 if segtype == SegmentType.ACK:
-                    print('rcv ACK from receiver KKK')
+                    Helpers.log_message('sender', LogActions.RECEIVE, control.start_time, SegmentType.ACK, seqno, 0)
                     return
             except Exception as e:
                 print(e)
@@ -160,8 +169,8 @@ if __name__ == "__main__":
     state_syn_sent(control)
 
     # Start the receiver and timer threads.
-    receiver = threading.Thread(target=recv_thread, args=(control,))
-    receiver.start()
+    # receiver = threading.Thread(target=recv_thread, args=(control,))
+    # receiver.start()
 
     # timer = threading.Timer(run_time, timer_thread, args=(control,))
     # timer.start()
@@ -186,7 +195,7 @@ if __name__ == "__main__":
         # time.sleep(random.uniform(0, MAX_SLEEP + 1))
     
     # Suspend execution here and wait for the threads to finish.
-    receiver.join()
+    # receiver.join()
     # timer.cancel()
 
     control.socket.close()  # Close the socket
