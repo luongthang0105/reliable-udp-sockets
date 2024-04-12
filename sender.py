@@ -18,9 +18,10 @@ from dataclasses import dataclass
 from arg_parser import ArgParser
 from stp_helpers import Stp
 from helpers import Helpers
+from enums import SegmentType, LogActions
 
 NUM_ARGS  = 7  # Number of command-line arguments
-BUF_SIZE  = 1004  # Size of buffer for receiving messages
+BUF_SIZE  = 4  # Size of buffer for receiving messages
 MAX_SEQNO = 2**16 # Maximum sequence number
 
 @dataclass
@@ -58,16 +59,21 @@ def state_syn_sent(control: Control):
         while not control.is_connected:
             try:
                 # Create a STP segment
-                stp_segment = Stp.create_stp_segment(type=2, seqno=control.seqno)
-                # First send a SYN to signal establishment
+                stp_segment = Stp.create_stp_segment(type=SegmentType.SYN, seqno=control.seqno)
+                # First send a SYN segment to signal establishment
                 control.socket.send(stp_segment)
 
                 # Set a timeout for next socket operation (i.e. recv())
                 # If it takes longer than "rto" for receiver to response,
                 # a TimeoutError will be raised.
                 control.socket.settimeout(control.rto)
-                ack = control.socket.recv(BUF_SIZE)
+                
+                response = control.socket.recv(BUF_SIZE)
+                segtype = int.from_bytes(response, byteorder='big')
 
+                if segtype == SegmentType.ACK:
+                    print('rcv ACK from receiver KKK')
+                    return
             except Exception as e:
                 print(e)
                 continue
