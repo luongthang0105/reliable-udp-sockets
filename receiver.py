@@ -38,16 +38,19 @@ if __name__ == "__main__":
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.bind(('127.0.0.1', rcvr_port))
         s.connect(('127.0.0.1', sender_port))
-
+        print('Receiver socket opened!')
         while True:
             receive = s.recv(BUF_SIZE)
             segmentType, seqno, data = Stp.extract_stp_segment(receive)
-
             if segmentType == SegmentType.SYN:
+                print('receieve stuff from sender')
+                print(segmentType, seqno)
                 seqno = int.from_bytes(receive[2:4], 'big')
                 # For SYN segment, add 1 to seqno
                 seqno = Helpers.add_seqno(seqno, 1)
 
-                ack_response = Stp.create_stp_segment(SegmentType.ACK, seqno)
+                ack_segment = Stp.create_stp_segment(SegmentType.ACK, seqno)
+                
+                s.send(ack_segment)
 
     sys.exit(0)
