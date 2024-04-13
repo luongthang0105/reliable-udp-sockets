@@ -39,7 +39,7 @@ class Control:
     flp: float          # probability of sent packet being dropped
     socket: socket.socket   # Socket for sending/receiving messages
     is_connected: bool = False # a flag to signal successful connection or when to terminate
-    start_time: float   # time in miliseconds at first sent segment
+    start_time: float = 0.0   # time in miliseconds at first sent segment
 
 
 # =====================Update setup_socket function ========================
@@ -47,7 +47,6 @@ def setup_socket(sender_port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     # bind to sender port
     sock.bind(('127.0.0.1', sender_port))
-    
     return sock
 
 # Enter SYN_SENT state by first send an SYN segment
@@ -68,6 +67,7 @@ def state_syn_sent(control: Control):
                 if is_first_segment: 
                     control.start_time = Helpers.get_time_mls()
                     Helpers.log_message('sender', LogActions.SEND, 0.0, SegmentType.SYN, control.seqno, 0)
+                    is_first_segment = False
                 else:
                     Helpers.log_message('sender', LogActions.SEND, control.start_time, SegmentType.SYN, control.seqno, 0)
 
@@ -75,13 +75,14 @@ def state_syn_sent(control: Control):
                 # Set a timeout for next socket operation (i.e. recv())
                 # If it takes longer than "rto" for receiver to response,
                 # a TimeoutError will be raised.
-                control.socket.settimeout(control.rto)
+                # control.socket.settimeout(control.rto)
                 
                 response = control.socket.recv(BUF_SIZE)
                 segtype, seqno, data = Stp.extract_stp_segment(response)
 
                 if segtype == SegmentType.ACK:
                     Helpers.log_message('sender', LogActions.RECEIVE, control.start_time, SegmentType.ACK, seqno, 0)
+                    control.is_connected = True
                     return
             except Exception as e:
                 print(e)
@@ -156,7 +157,7 @@ if __name__ == "__main__":
 
     Helpers.reset_log('sender')
 
-    sock = setup_socket(sender_port, rcvr_port)
+    sock = setup_socket(sender_port)
 
     # Use a fixed seed for debugging purpose, NEED TO CHANGED BEFORE SUBMITTED
     random.seed(1)  # Seed the random number generator
@@ -175,24 +176,6 @@ if __name__ == "__main__":
     # timer = threading.Timer(run_time, timer_thread, args=(control,))
     # timer.start()
 
-    
-    # Send a sequence of random numbers as separate datagrams, until the 
-    # timer expires.
-    while control.is_alive:
-        num = random.randrange(2**16)       # Random number in range [0, 65535]
-        net_num = num.to_bytes(2, "big")    # Convert number to network byte order
-
-        # Log the send and then send the random number.
-        print(f"127.0.0.1:{rcvr_port}: snd: {num:>5}")
-        nsent = control.socket.send(net_num)
-        if nsent != len(net_num):
-            control.is_alive = False
-            sys.exit(f"send: partial/failed send of {nsent} bytes")
-
-        # Sleep for a random amount of time before sending the next message.
-        # This is ONLY done for the sake of the demonstration, it should be 
-        # removed to maximise the efficiency of the sender.
-        # time.sleep(random.uniform(0, MAX_SLEEP + 1))
     
     # Suspend execution here and wait for the threads to finish.
     # receiver.join()
