@@ -30,7 +30,7 @@ class Stp:
         type_bytes = type.value.to_bytes(2, byteorder="big")
         seqno_bytes = seqno.to_bytes(2, byteorder="big")
         stp_segment = type_bytes + seqno_bytes
-        if not data:
+        if data:
             stp_segment += data
         return stp_segment
     
