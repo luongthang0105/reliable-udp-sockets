@@ -75,7 +75,7 @@ def state_syn_sent(control: Control):
                 # Set a timeout for next socket operation (i.e. recv())
                 # If it takes longer than "rto" for receiver to response,
                 # a TimeoutError will be raised.
-                # control.socket.settimeout(control.rto)
+                control.socket.settimeout(control.rto)
                 
                 response = control.socket.recv(BUF_SIZE)
                 segtype, seqno, data = Stp.extract_stp_segment(response)
@@ -168,7 +168,7 @@ if __name__ == "__main__":
                       socket=sock, max_win=max_win, seqno=isn, rto=rto,
                       file_name=txt_file_to_send, flp=flp, rlp=rlp)
     state_syn_sent(control)
-
+    print('Finished 2-way Connection Setup')
     # Start the receiver and timer threads.
     # receiver = threading.Thread(target=recv_thread, args=(control,))
     # receiver.start()
