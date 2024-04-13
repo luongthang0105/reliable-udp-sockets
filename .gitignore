@@ -1,3 +1,4 @@
 *.json
 *.pyc
-*.txt
+sender_log.txt
+receiver_log.txt
