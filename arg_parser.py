@@ -78,7 +78,7 @@ class ArgParser:
         Returns:
             float: rto in seconds
         """
-        rto = float(rto_str) // 1000.0
+        rto = float(rto_str) / 1000.0
         if rto < 0:
             sys.exit(f"Invalid rto, must be an unsigned integer: {rto}")
         return rto
