@@ -1,6 +1,7 @@
 import sys
 
 class ArgParser:
+    @staticmethod
     def parse_port(port_str, min_port=49152, max_port=65535):
         """Parse the port argument from the command-line.
 
@@ -27,6 +28,7 @@ class ArgParser:
 
         return port
 
+    @staticmethod
     def parse_file_name(file_name):
         """Parse the txt_file_to_send argument from the command-line.
 
@@ -46,6 +48,7 @@ class ArgParser:
 
         return file_name
 
+    @staticmethod
     def parse_max_win(max_win_str):
         """Parse the max_win argument from the command-line.
 
@@ -63,22 +66,24 @@ class ArgParser:
 
         return max_win
 
+    @staticmethod
     def parse_rto(rto_str):
         """Parse the rto argument from the command-line.
 
         This function needs to check whether rto >= 0.
 
         Args:
-            rto_str (str): The rto (retransmission timer) argument from the command-line.
+            rto_str (str): the value of the retransmission timer in milliseconds.
 
         Returns:
-            int: rto
+            float: rto in seconds
         """
-        rto = int(rto_str)
+        rto = float(rto_str) // 1000.0
         if rto < 0:
             sys.exit(f"Invalid rto, must be an unsigned integer: {rto}")
         return rto
 
+    @staticmethod
     def parse_prop(prop_str):
         """Parse the flp/rlp argument from the command-line.
 
