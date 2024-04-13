@@ -17,7 +17,8 @@ class Helpers:
             Args:
                 user            (str)           : 'sender' or 'receiver', based on which socket calls this method 
                 action          (LogActions)    : either 'snd'(SEND), 'rcv'(RECEIVE), or 'drp'(DROP)
-                start_time      (float)         : start time of the first segment
+                start_time      (float)         : start time of the first segment, if equals 0.0, this means this is the
+                very first segment, so time_diff would be 0.0
                 segment_type    (SegmentType)   : either DATA, ACK, SYN, FIN
                 seqno           (int)           : sequence number
                 num_bytes       (int)           : payload size
@@ -25,9 +26,10 @@ class Helpers:
                 None
         '''
         log_file = f"{user}_log.txt"
-        time_diff = Helpers.get_time_mls() - start_time
+        if start_time == 0.0: time_diff = 0.0
+        else: time_diff = round(Helpers.get_time_mls() - start_time, 2)
         with open(log_file, 'a') as file:
-            file.write(f"{action.value} {time_diff} {segment_type.name} {seqno} {num_bytes}\n")
+            file.write(f"{action.value:<3} {time_diff:<7} {segment_type.name:<4} {seqno:5} {num_bytes}\n")
         return
     
     @staticmethod
