@@ -16,9 +16,8 @@ import threading
 import time
 from dataclasses import dataclass
 from arg_parser import ArgParser
-from stp_helpers import Stp
 from helpers import Helpers
-from enums import SegmentType, LogActions
+from states import States
 
 NUM_ARGS  = 7  # Number of command-line arguments
 BUF_SIZE  = 4  # Size of buffer for receiving messages
@@ -27,9 +26,8 @@ MAX_SEQNO = 2**16 # Maximum sequence number
 @dataclass
 class Control:
     """Control block: parameters for the sender program."""
-    # host: str               # Hostname or IP address of the receiver
     # ================== Update arguments =====================
-    sender_port: int        # Port number of the sender
+    sender_port: int    # Port number of the sender
     rcvr_port: int      # Port number of the receiver
     max_win: int        # max window size, should be the same for receiver side
     rto: float          # retransmission time for a socket
@@ -48,52 +46,6 @@ def setup_socket(sender_port):
     # bind to sender port
     sock.bind(('127.0.0.1', sender_port))
     return sock
-
-# Enter SYN_SENT state by first send an SYN segment
-def state_syn_sent(control: Control):
-    try:
-        # Establish a connected UDP connection
-        control.socket.connect(('127.0.0.1', control.rcvr_port))
-        
-        is_first_segment = True
-        # To make the connection "reliable", we perform a two-way handshake.
-        while not control.is_connected:
-            try:
-                # Create a STP segment
-                stp_segment = Stp.create_stp_segment(type=SegmentType.SYN, seqno=control.seqno)
-                # First send a SYN segment to signal establishment
-                control.socket.send(stp_segment)
-
-                if is_first_segment: 
-                    control.start_time = Helpers.get_time_mls()
-                    Helpers.log_message('sender', LogActions.SEND, 0.0, SegmentType.SYN, control.seqno, 0)
-                    is_first_segment = False
-                else:
-                    Helpers.log_message('sender', LogActions.SEND, control.start_time, SegmentType.SYN, control.seqno, 0)
-
-
-                # Set a timeout for next socket operation (i.e. recv())
-                # If it takes longer than "rto" for receiver to response,
-                # a TimeoutError will be raised.
-                control.socket.settimeout(control.rto)
-                
-                response = control.socket.recv(BUF_SIZE)
-                segtype, seqno, data = Stp.extract_stp_segment(response)
-
-                if segtype == SegmentType.ACK:
-                    Helpers.log_message('sender', LogActions.RECEIVE, control.start_time, SegmentType.ACK, seqno, 0)
-                    control.is_connected = True
-                    return
-            except Exception as e:
-                print(e)
-                continue
-            else:
-                control.is_connected = True
-            finally:
-                control.socket.settimeout(None)
-    except Exception as e:
-        sys.exit(f"Failed to connect to '127.0.0.1':{rcvr_port}: {e}")
-
 
 def recv_thread(control):
     """The receiver thread function.
@@ -167,8 +119,10 @@ if __name__ == "__main__":
     control = Control(sender_port=sender_port, rcvr_port=rcvr_port, 
                       socket=sock, max_win=max_win, seqno=isn, rto=rto,
                       file_name=txt_file_to_send, flp=flp, rlp=rlp)
-    state_syn_sent(control)
+    States.state_syn_sent(control)
     print('Finished 2-way Connection Setup')
+
+
     # Start the receiver and timer threads.
     # receiver = threading.Thread(target=recv_thread, args=(control,))
     # receiver.start()
