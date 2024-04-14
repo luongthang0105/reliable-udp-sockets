@@ -28,6 +28,8 @@ class Helpers:
         log_file = f"{user}_log.txt"
         if start_time == 0.0: time_diff = 0.0
         else: time_diff = round(Helpers.get_time_mls() - start_time, 2)
+        # This is kind of inefficient to open this again everytime we wanna write. We can open it once at
+        # the start of the program and pass it into this function
         with open(log_file, 'a') as file:
             file.write(f"{action.value:<3} {time_diff:<7} {segment_type.name:<4} {seqno:5} {num_bytes}\n")
         return
