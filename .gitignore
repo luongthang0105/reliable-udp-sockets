@@ -2,3 +2,4 @@
 *.pyc
 sender_log.txt
 receiver_log.txt
+rcv.txt
