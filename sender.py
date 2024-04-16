@@ -22,7 +22,7 @@ from states import States
 NUM_ARGS  = 7  # Number of command-line arguments
 BUF_SIZE  = 4  # Size of buffer for receiving messages
 MAX_SEQNO = 2**16 # Maximum sequence number
-
+MSS = 1000     # Maximum segment size
 @dataclass
 class Control:
     """Control block: parameters for the sender program."""
@@ -39,6 +39,13 @@ class Control:
     is_connected: bool = False # a flag to signal successful connection or when to terminate
     start_time: float = 0.0   # time in miliseconds at first sent segment
 
+@dataclass 
+class SegmentControl:
+    """Segment Control block: manages data segments related info"""
+    segments: list      # List of 1000 bytes max segments from file
+    send_base: int = 0  # The index of the oldest unACKed segment
+    seqno_map: dict     # A dictionary to map seqno to its corresponding index in list
+    dupACK_cnt: int = 0 # The count of duplicate ACKed segment for fast retransmit 
 
 # =====================Update setup_socket function ========================
 def setup_socket(sender_port):
@@ -122,7 +129,7 @@ if __name__ == "__main__":
     States.state_syn_sent(control)
     print('Finished 2-way Connection Setup')
 
-
+    segment_control = Helpers.create_segment_control(control.file_name, control.seqno)
     # Start the receiver and timer threads.
     # receiver = threading.Thread(target=recv_thread, args=(control,))
     # receiver.start()

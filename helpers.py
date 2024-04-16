@@ -1,5 +1,7 @@
 import time
 from enums import LogActions, SegmentType
+from sender import SegmentControl, MSS
+
 # General helper functions
 MAX_SEQNO = 2**16
 class Helpers:
@@ -40,7 +42,7 @@ class Helpers:
             Empty a log file by opening it in 'write' mode.
 
             Args:
-                user            (str)           : 'sender' or 'receiver', based on which socket calls this method 
+                user (str): 'sender' or 'receiver', based on which socket calls this method 
             Returns:
                 None
         '''
@@ -59,3 +61,38 @@ class Helpers:
                 int: resulted seqno after addition (and MOD MAX_SEQNO) 
         '''
         return (seqno + amount) % MAX_SEQNO
+
+    @staticmethod
+    def create_segment_control(file_name: str, seqno: int) -> SegmentControl:
+        '''
+            Create a segment control with all of its properties:
+                - segments: read each 1000 bytes max from given file, append them to list
+                - seqno_map: maps the sequence number of each segment to their index in "segments" list
+            Args:
+                file_name   (str): file name to read
+                seqno       (int): sequence number after SYNSENT state
+            Returns:
+                SegmentControl 
+        '''
+        segments = []
+        seqno_map = {}
+        curr_seqno = seqno
+
+        f = open(file_name, 'r')
+        while True:
+            data = f.read(MSS)
+
+            if not data: break
+
+            seqno_map[curr_seqno] = len(segments)
+            curr_seqno += len(data)
+
+            segments.append(data)
+
+        segment_control = SegmentControl(segments, seqno_map)
+        
+        f.close()
+
+        return segment_control
+
+        
