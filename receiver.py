@@ -109,11 +109,6 @@ if __name__ == "__main__":
                             buffered_rcv_data = buff.buffer[buff.index]
                             current_seqno = (buff.expct_seqno + len(buffered_rcv_data)) % MAX_SEQNO
 
-                            # Send back an ACK segment
-                            ack_segment = Stp.create_stp_segment(SegmentType.ACK, buff.expct_seqno)
-                            s.send(ack_segment)
-                            Helpers.log_message('receiver', LogActions.SEND, control.start_time, SegmentType.ACK, current_seqno, 0)
-
                             # Write data to output file
                             f.write(buffered_rcv_data)
 
@@ -152,6 +147,11 @@ if __name__ == "__main__":
                             raise Exception('buffer[final_index] is not empty')
 
                         buff.buffer[final_index] = data
+
+                    # Send back an ACK segment
+                    ack_segment = Stp.create_stp_segment(SegmentType.ACK, buff.expct_seqno)
+                    s.send(ack_segment)
+                    Helpers.log_message('receiver', LogActions.SEND, control.start_time, SegmentType.ACK, current_seqno, 0)
         sys.exit(0)
     except Exception as e:
         print(e)
