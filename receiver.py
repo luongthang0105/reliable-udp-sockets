@@ -38,7 +38,7 @@ class Control:
 class Buffer:
     """Control block: parameters for the receiver buffer."""
     # ================== Update arguments =====================
-    buffer:     list    # Buffer that saves received data
+    buffer:     list[bytes]    # Buffer that saves received data
     expct_seqno:int     # The expected sequence number when receive next packet
     index:      int     # The index where the next in-order packet lives in buffer
     max_size:   int     # The maximum size of buffer
@@ -110,7 +110,7 @@ if __name__ == "__main__":
                             current_seqno = (buff.expct_seqno + len(buffered_rcv_data)) % MAX_SEQNO
 
                             # Write data to output file
-                            f.write(buffered_rcv_data)
+                            f.write(buffered_rcv_data.decode())
 
                             # Re-empty this position in buffer
                             buff.buffer[buff.index] = None
