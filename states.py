@@ -57,6 +57,8 @@ class States:
 
     @staticmethod
     def state_est(control: Control):
+        control.is_est_state = True
+
         segment_control = Helpers.create_segment_control(control.file_name, control.seqno)
 
         # Start the receiver and sender threads.
@@ -84,12 +86,15 @@ class Est_Threads:
         index = 0
         # Number of segments
         num_segments = len(segment_control.segments)
-        while index < num_segments and segment_control.end < num_segments:
+        while index < num_segments and segment_control.send_base < num_segments:
             if index < segment_control.end:
                 data = segment_control.segments[index]
                 Helpers.send_data(control, control.seqno, data)
                 index += 1
                 control.seqno += len(data)
+
+        # Finished EST state, change flag to False so that receiver thread can terminate
+        control.is_est_state = False
         return
 
     @staticmethod
@@ -98,35 +103,41 @@ class Est_Threads:
 
         The recv_thread() function is the entry point for the receiver thread. It
         will sit in a loop, checking for messages from the receiver. When a message 
-        is received, the sender will unpack the message and print it to the log. On
-        each iteration of the loop, it will check the `is_alive` flag. If the flag
-        is false, the thread will terminate. The `is_alive` flag is shared with the
-        main thread and the timer thread.
-
+        is received, the sender will unpack the message and print it to the log. 
+    
         Args:
             control (Control): The control block for the sender program.
+            segment_control (SegmentControl): The control block for data segments.
         """
-        while control.is_alive:
-            try:
-                nread = control.socket.recv(BUF_SIZE)
-            except BlockingIOError:
-                continue    # No data available to read
-            except ConnectionRefusedError:
-                print(f"recv: connection refused by {control.my_port}:{control.rcvr_port}, shutting down...", file=sys.stderr)
-                control.is_alive = False
-                break
+        while control.is_est_state:
+            received_segment = control.socket.recv(BUF_SIZE)
+            segment_type, seqno, _ = Stp.extract_stp_segment(received_segment)
 
-            if len(nread) < BUF_SIZE - 1:
-                print(f"recv: received short message of {nread} bytes", file=sys.stderr)
-                continue    # Short message, ignore it
+            # Get the index of the received segment in segments[] via their seqno
+            # If the seqno doesnt exist in the map, then this segment should be the very last one of the file.
+            # Hence, let received_segment_index be the length of segments[] (why? will explain in next few lines)
+            segments_len = len(segment_control.segments)
+            received_segment_index = segment_control.seqno_map.get(seqno, segments_len)
+            if segment_control.send_base < received_segment_index:
+                control.timer.cancel()
 
-            # Convert first 2 bytes (i.e. the number) from network byte order 
-            # (big-endian) to host byte order, and extract the `odd` flag.
-            num = int.from_bytes(nread[:2], "big")
-            odd = nread[2]
+                free_slots = received_segment_index - segment_control.send_base
+                # Since "send_base" is set to be equal to "receive_segment_index",
+                # we know that if "receive_segment_index" == len(segments) then 
+                # send_base == len(segments) as well. 
+                # Having send_base equal to that value means that we already sent all data,
+                # which will terminate the send_thread.
+                segment_control.send_base = received_segment_index
+                end += free_slots
 
-            # Log the received message
-            print(f"127.0.0.1:{control.rcvr_port}: rcv: {num:>5} {'odd' if odd else 'even'}")
+                control.timer.cancel()
+            elif segment_control.send_base == received_segment_index:
+                segment_control.dupACK_cnt += 1
+                # Fast retransmit
+                if segment_control.dupACK_cnt == 3:
+                    Helpers.send_data(control, seqno, segment_control.segments[received_segment_index])
+                    segment_control.dupACK_cnt = 0
+        
 
     @staticmethod
     def timeout_thread(control: Control, segment_control: SegmentControl, unACKed_seqno: int):
