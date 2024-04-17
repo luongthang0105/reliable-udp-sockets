@@ -13,11 +13,11 @@ import random
 import socket
 import sys
 import threading
-import time
 from dataclasses import dataclass
 from arg_parser import ArgParser
 from helpers import Helpers
 from states import States
+from stp_helpers import Stp
 
 NUM_ARGS  = 7  # Number of command-line arguments
 BUF_SIZE  = 4  # Size of buffer for receiving messages
@@ -38,12 +38,14 @@ class Control:
     socket: socket.socket   # Socket for sending/receiving messages
     is_connected: bool = False # a flag to signal successful connection or when to terminate
     start_time: float = 0.0   # time in miliseconds at first sent segment
+    timer: threading.Timer = None # A single timer associates with the EST state
 
 @dataclass 
 class SegmentControl:
     """Segment Control block: manages data segments related info"""
     segments: list      # List of 1000 bytes max segments from file
     send_base: int = 0  # The index of the oldest unACKed segment
+    end: int = 0        # The end index of current sliding window on segments[]
     seqno_map: dict     # A dictionary to map seqno to its corresponding index in list
     dupACK_cnt: int = 0 # The count of duplicate ACKed segment for fast retransmit 
 
@@ -53,54 +55,6 @@ def setup_socket(sender_port):
     # bind to sender port
     sock.bind(('127.0.0.1', sender_port))
     return sock
-
-def recv_thread(control):
-    """The receiver thread function.
-
-    The recv_thread() function is the entry point for the receiver thread. It
-    will sit in a loop, checking for messages from the receiver. When a message 
-    is received, the sender will unpack the message and print it to the log. On
-    each iteration of the loop, it will check the `is_alive` flag. If the flag
-    is false, the thread will terminate. The `is_alive` flag is shared with the
-    main thread and the timer thread.
-
-    Args:
-        control (Control): The control block for the sender program.
-    """
-    while control.is_alive:
-        try:
-            nread = control.socket.recv(BUF_SIZE)
-        except BlockingIOError:
-            continue    # No data available to read
-        except ConnectionRefusedError:
-            print(f"recv: connection refused by {control.my_port}:{control.rcvr_port}, shutting down...", file=sys.stderr)
-            control.is_alive = False
-            break
-
-        if len(nread) < BUF_SIZE - 1:
-            print(f"recv: received short message of {nread} bytes", file=sys.stderr)
-            continue    # Short message, ignore it
-
-        # Convert first 2 bytes (i.e. the number) from network byte order 
-        # (big-endian) to host byte order, and extract the `odd` flag.
-        num = int.from_bytes(nread[:2], "big")
-        odd = nread[2]
-
-        # Log the received message
-        print(f"127.0.0.1:{control.rcvr_port}: rcv: {num:>5} {'odd' if odd else 'even'}")
-
-def timer_thread(control):
-    """Stop execution when the timer expires.
-
-    The timer_thread() function will be called when the timer expires. It will
-    print a message to the log, and set the `is_alive` flag to False. This will
-    signal the receiver thread, and the sender program, to terminate.
-
-    Args:
-        control (Control): The control block for the sender program.
-    """
-    print(f"{control.run_time} second timer expired, shutting down...")
-    control.is_alive = False
 
 if __name__ == "__main__":
     if len(sys.argv) != NUM_ARGS + 1:
@@ -129,18 +83,7 @@ if __name__ == "__main__":
     States.state_syn_sent(control)
     print('Finished 2-way Connection Setup')
 
-    segment_control = Helpers.create_segment_control(control.file_name, control.seqno)
-    # Start the receiver and timer threads.
-    # receiver = threading.Thread(target=recv_thread, args=(control,))
-    # receiver.start()
-
-    # timer = threading.Timer(run_time, timer_thread, args=(control,))
-    # timer.start()
-
-    
-    # Suspend execution here and wait for the threads to finish.
-    # receiver.join()
-    # timer.cancel()
+    States.state_est(control)
 
     control.socket.close()  # Close the socket
 
