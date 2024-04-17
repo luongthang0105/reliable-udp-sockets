@@ -37,6 +37,7 @@ class Control:
     flp: float          # probability of sent packet being dropped
     socket: socket.socket   # Socket for sending/receiving messages
     is_connected: bool = False # a flag to signal successful connection or when to terminate
+    is_est_state: bool = False # a flag to signal whether our sender program is in EST state
     start_time: float = 0.0   # time in miliseconds at first sent segment
     timer: threading.Timer = None # A single timer associates with the EST state
 
