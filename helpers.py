@@ -1,7 +1,9 @@
 import time
+import threading
 from enums import LogActions, SegmentType
-from sender import SegmentControl, MSS
-
+from sender import SegmentControl, Control, MSS
+from stp_helpers import Stp
+from states import Est_Threads
 # General helper functions
 MAX_SEQNO = 2**16
 class Helpers:
@@ -95,4 +97,19 @@ class Helpers:
 
         return segment_control
 
-        
+    @staticmethod
+    def send_data(control: Control, data_seqno: int, data: bytes):
+        '''
+            Send data to receiver, initiate timer if haven't already.
+
+            Args:
+                file_name   (str): file name to read
+                seqno       (int): sequence number after SYNSENT state
+        '''
+        sent_segment = Stp.create_stp_segment(SegmentType.DATA, data_seqno, data)
+        control.socket.send(sent_segment)
+        Helpers.log_message('sender', LogActions.SEND, control.start_time, SegmentType.DATA, data_seqno, len(data))
+
+        if control.timer == None or not control.timer.is_alive():
+            control.timer = threading.Timer(control.rto, Est_Threads.timeout_thread, args=(control, data_seqno))
+            control.timer.start()
