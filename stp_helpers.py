@@ -14,7 +14,7 @@ class Stp:
     # Hence, use @staticmethod decorator to remove the need of self parameter.
     # This will also allow us to use these methods without initializing a class.
     @staticmethod
-    def create_stp_segment(type: SegmentType, seqno: int, data: bytes = None) -> bytes:
+    def create_stp_segment(segtype: SegmentType, seqno: int, data: bytes = None) -> bytes:
         """Create a STP segment that obeys the above diagram, given the types, seqno and data (payload).
         
         This function converts the type and segno to bytes and append it with data.
@@ -27,11 +27,12 @@ class Stp:
         Returns:
             bytes: STP Segment in bytes.
         """
-        type_bytes = type.value.to_bytes(2, byteorder="big")
+        type_bytes = segtype.value.to_bytes(2, byteorder="big")
         seqno_bytes = seqno.to_bytes(2, byteorder="big")
         stp_segment = type_bytes + seqno_bytes
         if data:
-            stp_segment += data
+            # print(type(stp_segment), type(data))
+            stp_segment = stp_segment + data
         return stp_segment
     
     @staticmethod
