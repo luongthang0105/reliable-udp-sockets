@@ -93,8 +93,8 @@ def send_data(control: Control, segment_control: SegmentControl, data_seqno: int
         control.timer = threading.Timer(control.rto, Est_Threads.timeout_thread, args=(control, segment_control, data_seqno))
         control.timer.start()
 
-    control.socket.send(sent_segment)
     Helpers.log_message('sender', LogActions.SEND, control.start_time, SegmentType.DATA, data_seqno, len(data))
+    control.socket.send(sent_segment)
 
 
 class Est_Threads:
@@ -106,6 +106,7 @@ class Est_Threads:
         # Number of segments
         num_segments = len(segment_control.segments)
         while index < num_segments and segment_control.send_base < num_segments:
+            print(index, segment_control.end)
             if index < segment_control.end:
                 data = segment_control.segments[index]
                 send_data(control, segment_control, control.seqno, data)
@@ -130,9 +131,9 @@ class Est_Threads:
         """
         while control.is_est_state:
             received_segment = control.socket.recv(BUF_SIZE)
-            segment_type, seqno, _ = Stp.extract_stp_segment(received_segment)
             Helpers.log_message('sender', LogActions.RECEIVE, control.start_time, segment_type, seqno, 0)
-
+            segment_type, seqno, _ = Stp.extract_stp_segment(received_segment)
+            
             # Get the index of the received segment in segments[] via their seqno
             # If the seqno doesnt exist in the map, then this segment should be the very last one of the file.
             # Hence, let received_segment_index be the length of segments[] (why? will explain in next few lines)
@@ -158,7 +159,6 @@ class Est_Threads:
                     send_data(control, segment_control, seqno, segment_control.segments[received_segment_index])
                     print(f'dupACK for {seqno}')
                     segment_control.dupACK_cnt = 0
-
     @staticmethod
     def timeout_thread(control: Control, segment_control: SegmentControl, unACKed_seqno: int):
         """ If enters this thread, the waiting for some unACKed segment exceeds time limit (rto).
