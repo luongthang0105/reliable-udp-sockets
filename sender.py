@@ -45,8 +45,8 @@ if __name__ == "__main__":
 
     # Use a fixed seed for debugging purpose, NEED TO CHANGED BEFORE SUBMITTED
     random.seed(1)  # Seed the random number generator
-    # isn = random.randrange(MAX_SEQNO)
-    isn = 0
+    isn = random.randrange(MAX_SEQNO)
+    # isn = 0
 
     # Create a control block for the sender program.
     control = Control(sender_port=sender_port, rcvr_port=rcvr_port, 
