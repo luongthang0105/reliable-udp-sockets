@@ -51,7 +51,7 @@ if __name__ == "__main__":
     # Create a control block for the sender program.
     control = Control(sender_port=sender_port, rcvr_port=rcvr_port, 
                       socket=sock, max_win=max_win, seqno=isn, rto=rto,
-                      file_name=txt_file_to_send, flp=flp, rlp=rlp)
+                      file_name=txt_file_to_send, flp=flp, rlp=rlp, lock=threading.Lock())
     States.state_syn_sent(control)
     print('Finished 2-way Connection Setup')
 
