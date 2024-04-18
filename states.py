@@ -15,43 +15,26 @@ class States:
             # Establish a connected UDP connection
             control.socket.connect(('127.0.0.1', control.rcvr_port))
             
-            # A flag to mark first segment. We need this because the time of the first log message is 0.0
-            is_first_segment = True
-            # To make the connection "reliable", we perform a two-way handshake.
-            while not control.is_connected:
-                try:
-                    # Create a STP segment
-                    stp_segment = Stp.create_stp_segment(segtype=SegmentType.SYN, seqno=control.seqno)
-                    # First send a SYN segment to signal establishment
-                    control.socket.send(stp_segment)
-                    
-                    if is_first_segment: 
-                        control.start_time = Helpers.get_time_mls()
-                        Helpers.log_message('sender', LogActions.SEND, 0.0, SegmentType.SYN, control.seqno, 0)
-                        is_first_segment = False
-                    else:
-                        Helpers.log_message('sender', LogActions.SEND, control.start_time, SegmentType.SYN, control.seqno, 0)
+            # Create a STP segment
+            stp_segment = Stp.create_stp_segment(segtype=SegmentType.SYN, seqno=control.seqno)
+            
+            receive_thread = threading.Thread(target=SynSent_Threads.recv_thread, args=(control,))
+            receive_thread.start()
 
+            control.start_time = Helpers.get_time_mls()
+            control.timer = threading.Timer(control.rto, SynSent_Threads.timeout_thread, (control, stp_segment))
+            control.timer.start()
 
-                    # Set a timeout for next socket operation (i.e. recv())
-                    # If it takes longer than "rto" for receiver to response,
-                    # a TimeoutError will be raised.
-                    control.socket.settimeout(control.rto)
-                    
-                    response = control.socket.recv(BUF_SIZE)
-                    segtype, seqno, _ = Stp.extract_stp_segment(response)
+            if Helpers.is_dropped(control.flp):
+                Helpers.log_message('sender', LogActions.DROPPED, 0.0, SegmentType.SYN, control.seqno, 0)
+            else:
+                Helpers.log_message('sender', LogActions.SEND, 0.0, SegmentType.SYN, control.seqno, 0)
+                control.socket.send(stp_segment)
+            
+            receive_thread.join()
 
-                    if segtype == SegmentType.ACK:
-                        Helpers.log_message('sender', LogActions.RECEIVE, control.start_time, SegmentType.ACK, seqno, 0)
-                        control.is_connected = True
-                        control.seqno = seqno
-                except Exception as e:
-                    print(e)
-                    continue
-                else:
-                    control.is_connected = True
-                finally:
-                    control.socket.settimeout(None)
+            control.timer.cancel()
+            control.timer = None
         except Exception as e:
             sys.exit(f"Failed to connect to '127.0.0.1':{control.rcvr_port}: {e}")
 
@@ -68,11 +51,6 @@ class States:
         receiver = threading.Thread(target=Est_Threads.recv_thread, args=(control, segment_control))
         receiver.start()
 
-        # timer = threading.Timer(1, Est_Threads.timeout_thread, args=(control,))
-        # timer.start()
-        # timer.
-
-        
         # Suspend execution here and wait for the threads to finish.
         receiver.join()
         send.join()
@@ -187,6 +165,7 @@ class Est_Threads:
                     print(f'dupACK for {seqno}')
                     
                     segment_control.dupACK_cnt = 0
+    
     @staticmethod
     def timeout_thread(control: Control, segment_control: SegmentControl, unACKed_seqno: int):
         """ If enters this thread, the waiting for some unACKed segment exceeds time limit (rto).
@@ -210,4 +189,31 @@ class Est_Threads:
 
         send_data(control, segment_control, unACKed_seqno, data)
         
+class SynSent_Threads:
+    def recv_thread(control: Control):
+        while not control.is_connected:
+            response = control.socket.recv(BUF_SIZE)
+            segtype, seqno, _ = Stp.extract_stp_segment(response)
+            
+            if Helpers.is_dropped(control.rlp):
+                Helpers.log_message('sender', LogActions.DROPPED, control.start_time, SegmentType.ACK, seqno, 0)
+                continue
+
+            control.timer.cancel()
+
+            if segtype == SegmentType.ACK:
+                Helpers.log_message('sender', LogActions.RECEIVE, control.start_time, SegmentType.ACK, seqno, 0)
+                control.is_connected = True
+                control.seqno = seqno
+
+    def timeout_thread(control: Control, stp_segment: bytes):
+        control.timer = threading.Timer(control.rto, SynSent_Threads.timeout_thread, (control, stp_segment))
+        control.timer.start()
+
+        if Helpers.is_dropped(control.flp):
+            Helpers.log_message('sender', LogActions.DROPPED, control.start_time, SegmentType.SYN, control.seqno, 0)
+        else:
+            Helpers.log_message('sender', LogActions.SEND, control.start_time, SegmentType.SYN, control.seqno, 0)
+            control.socket.send(stp_segment)
+
 
