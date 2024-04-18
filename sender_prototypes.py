@@ -23,11 +23,17 @@ class Control:
     is_est_state: bool = False # a flag to signal whether our sender program is in EST state
     start_time: float = 0.0   # time in miliseconds at first sent segment
     timer: threading.Timer = None # A single timer associates with the EST state
+    lock: threading.Lock = None # lock for timer 
+
+@dataclass
+class Segment:
+    is_sent: bool
+    data: bytes
 
 @dataclass 
 class SegmentControl:
     """Segment Control block: manages data segments related info"""
-    segments: list      # List of 1000 bytes max segments from file
+    segments: list[Segment]      # List of 1000 bytes max segments from file
     send_base: int = 0  # The index of the oldest unACKed segment
     end: int = 0        # The end index of current sliding window on segments[]
     seqno_map: dict[int, int] = None # A dictionary to map seqno to its corresponding index in list
