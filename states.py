@@ -24,7 +24,7 @@ class States:
                     stp_segment = Stp.create_stp_segment(segtype=SegmentType.SYN, seqno=control.seqno)
                     # First send a SYN segment to signal establishment
                     control.socket.send(stp_segment)
-
+                    
                     if is_first_segment: 
                         control.start_time = Helpers.get_time_mls()
                         Helpers.log_message('sender', LogActions.SEND, 0.0, SegmentType.SYN, control.seqno, 0)
@@ -89,12 +89,21 @@ def send_data(control: Control, segment_control: SegmentControl, data_seqno: int
             data        (bytes): payload
     '''
     sent_segment = Stp.create_stp_segment(SegmentType.DATA, data_seqno, data)
-    if control.timer == None or not control.timer.is_alive():
+
+    control.lock.acquire()
+
+    if control.timer == None:
+        print(f'put timer on {data_seqno}')
         control.timer = threading.Timer(control.rto, Est_Threads.timeout_thread, args=(control, segment_control, data_seqno))
         control.timer.start()
+    control.lock.release()
 
-    Helpers.log_message('sender', LogActions.SEND, control.start_time, SegmentType.DATA, data_seqno, len(data))
-    control.socket.send(sent_segment)
+    if Helpers.is_dropped(control.flp):
+        Helpers.log_message('sender', LogActions.DROPPED, control.start_time, SegmentType.DATA, data_seqno, len(data))
+    else:
+        # print(f'send/timer put timeout for {data_seqno}')
+        Helpers.log_message('sender', LogActions.SEND, control.start_time, SegmentType.DATA, data_seqno, len(data))
+        control.socket.send(sent_segment)
 
 
 class Est_Threads:
@@ -106,15 +115,13 @@ class Est_Threads:
         # Number of segments
         num_segments = len(segment_control.segments)
         while index < num_segments and segment_control.send_base < num_segments:
-            print(index, segment_control.end)
             if index < segment_control.end:
-                data = segment_control.segments[index]
+                data = segment_control.segments[index].data
+                segment_control.segments[index].is_sent = True
                 send_data(control, segment_control, control.seqno, data)
                 index += 1
-                control.seqno += len(data)
+                control.seqno = Helpers.add_seqno(control.seqno, len(data))
 
-        # Finished EST state, change flag to False so that receiver thread can terminate
-        # control.is_est_state = False
         return
 
     @staticmethod
@@ -131,8 +138,13 @@ class Est_Threads:
         """
         while control.is_est_state:
             received_segment = control.socket.recv(BUF_SIZE)
-            Helpers.log_message('sender', LogActions.RECEIVE, control.start_time, segment_type, seqno, 0)
             segment_type, seqno, _ = Stp.extract_stp_segment(received_segment)
+
+            if Helpers.is_dropped(control.rlp):
+                Helpers.log_message('sender', LogActions.DROPPED, control.start_time, segment_type, seqno, 0)
+                continue
+
+            Helpers.log_message('sender', LogActions.RECEIVE, control.start_time, segment_type, seqno, 0)
             
             # Get the index of the received segment in segments[] via their seqno
             # If the seqno doesnt exist in the map, then this segment should be the very last one of the file.
@@ -141,8 +153,19 @@ class Est_Threads:
             received_segment_index = segment_control.seqno_map.get(seqno, segments_len)
 
             if segment_control.send_base < received_segment_index:
-                if control.timer: 
+                control.lock.acquire()
+
+                if control.timer != None: 
                     control.timer.cancel()
+                    control.timer = None
+                # If there are any unACKed segments, put timer on it
+                if received_segment_index <= min(segment_control.end, segments_len - 1) and segment_control.segments[received_segment_index].is_sent:
+                    print(f'recv put timer on {seqno}')
+                    control.timer = threading.Timer(control.rto, Est_Threads.timeout_thread, args=(control, segment_control, seqno))
+                    control.timer.start()
+                
+                control.lock.release()
+
                 free_slots = received_segment_index - segment_control.send_base
                 # Since "send_base" is set to be equal to "receive_segment_index",
                 # we know that if "receive_segment_index" == len(segments) then 
@@ -151,13 +174,18 @@ class Est_Threads:
                 # which will terminate the send_thread.
                 segment_control.send_base = received_segment_index
                 segment_control.end += free_slots
+                segment_control.dupACK_cnt = 0
 
             elif segment_control.send_base == received_segment_index:
+                # print(segment_control.dupACK_cnt)
                 segment_control.dupACK_cnt += 1
                 # Fast retransmit
                 if segment_control.dupACK_cnt == 3:
-                    send_data(control, segment_control, seqno, segment_control.segments[received_segment_index])
+                    fast_retrans_data = segment_control.segments[received_segment_index].data
+
+                    send_data(control, segment_control, seqno, fast_retrans_data)
                     print(f'dupACK for {seqno}')
+                    
                     segment_control.dupACK_cnt = 0
     @staticmethod
     def timeout_thread(control: Control, segment_control: SegmentControl, unACKed_seqno: int):
@@ -172,9 +200,14 @@ class Est_Threads:
 
         # Should we cancel any timer? Maybe not
         segment_index = segment_control.seqno_map[unACKed_seqno]
-        data = segment_control.segments[segment_index]
+        data = segment_control.segments[segment_index].data
         # Resend this segment
         print(f'timeout for {unACKed_seqno}')
+        
+        control.lock.acquire()
+        control.timer = None
+        control.lock.release()
+
         send_data(control, segment_control, unACKed_seqno, data)
         
 
