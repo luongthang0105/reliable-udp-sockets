@@ -11,6 +11,7 @@
 ###
 
 import socket
+import traceback
 import sys
 from dataclasses import dataclass
 from arg_parser import ArgParser
@@ -110,13 +111,12 @@ if __name__ == "__main__":
             while True:
                 receive = s.recv(BUF_SIZE)
                 segmentType, seqno, data = Stp.extract_stp_segment(receive)
-
                 if is_first_segment:
                     is_first_segment = False
                     # First rcv message must always be a SYN segment
                     Helpers.log_message('receiver', LogActions.RECEIVE, 0.0, SegmentType.SYN, seqno, 0)
                 else:
-                    Helpers.log_message('receiver', LogActions.RECEIVE, control.start_time, segmentType, seqno, len(data))            
+                    Helpers.log_message('receiver', LogActions.RECEIVE, control.start_time, segmentType, seqno, 0 if not data else len(data))            
 
 
                 if segmentType == SegmentType.SYN:
@@ -196,7 +196,7 @@ if __name__ == "__main__":
                     Helpers.log_message('receiver', LogActions.SEND, control.start_time, SegmentType.ACK, buff.expct_seqno, 0)
         sys.exit(0)
     except Exception as e:
-        print(e)
+        traceback.print_exc()
         sys.exit(1)
     finally:
         f.close()
