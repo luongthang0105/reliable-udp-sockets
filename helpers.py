@@ -80,7 +80,7 @@ class Helpers:
             Returns:
                 SegmentControl 
         '''
-        segments = []
+        segments: list[Segment] = []
         seqno_map = {}
         curr_seqno = seqno
 
@@ -92,9 +92,9 @@ class Helpers:
 
             seqno_map[curr_seqno] = len(segments)
             curr_seqno = Helpers.add_seqno(curr_seqno, len(data))
-
+            
             segments.append(Segment(is_sent=False, data=data))
-
+        
         segment_control = SegmentControl(segments=segments, seqno_map=seqno_map)
         
         f.close()
