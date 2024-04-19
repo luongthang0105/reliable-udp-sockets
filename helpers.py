@@ -1,5 +1,8 @@
 import time
+import random
 from enums import LogActions, SegmentType
+from sender_prototypes import SegmentControl, Segment, MSS
+
 # General helper functions
 MAX_SEQNO = 2**16
 class Helpers:
@@ -26,12 +29,12 @@ class Helpers:
                 None
         '''
         log_file = f"{user}_log.txt"
-        if start_time == 0.0: time_diff = 0.0
-        else: time_diff = round(Helpers.get_time_mls() - start_time, 2)
+        # if start_time == 0.0: time_diff = 0.0
+        # else: time_diff = 
         # This is kind of inefficient to open this again everytime we wanna write. We can open it once at
         # the start of the program and pass it into this function
         with open(log_file, 'a') as file:
-            file.write(f"{action.value:<3} {time_diff:<7} {segment_type.name:<4} {seqno:5} {num_bytes}\n")
+            file.write(f"{action.value:<3} {round(Helpers.get_time_mls() - start_time, 2) if start_time != 0.0 else 0.0:<11} {segment_type.name:<4} {seqno:5} {num_bytes}\n")
         return
     
     @staticmethod
@@ -40,7 +43,7 @@ class Helpers:
             Empty a log file by opening it in 'write' mode.
 
             Args:
-                user            (str)           : 'sender' or 'receiver', based on which socket calls this method 
+                user (str): 'sender' or 'receiver', based on which socket calls this method 
             Returns:
                 None
         '''
@@ -59,3 +62,41 @@ class Helpers:
                 int: resulted seqno after addition (and MOD MAX_SEQNO) 
         '''
         return (seqno + amount) % MAX_SEQNO
+
+    @staticmethod
+    def is_dropped(prob: float) -> bool:
+        if random.random() <= prob: return True
+        return False
+
+    @staticmethod
+    def create_segment_control(file_name: str, seqno: int) -> SegmentControl:
+        '''
+            Create a segment control with all of its properties:
+                - segments: read each 1000 bytes max from given file, append them to list
+                - seqno_map: maps the sequence number of each segment to their index in "segments" list
+            Args:
+                file_name   (str): file name to read
+                seqno       (int): sequence number after SYNSENT state
+            Returns:
+                SegmentControl 
+        '''
+        segments: list[Segment] = []
+        seqno_map = {}
+        curr_seqno = seqno
+
+        f = open(file_name, 'r')
+        while True:
+            data = f.read(MSS).encode()
+
+            if not data: break
+
+            seqno_map[curr_seqno] = len(segments)
+            curr_seqno = Helpers.add_seqno(curr_seqno, len(data))
+            
+            segments.append(Segment(is_sent=False, data=data))
+        
+        segment_control = SegmentControl(segments=segments, seqno_map=seqno_map)
+        
+        f.close()
+
+        return segment_control
