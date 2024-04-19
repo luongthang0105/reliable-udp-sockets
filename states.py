@@ -79,7 +79,6 @@ def send_data(control: Control, segment_control: SegmentControl, data_seqno: int
     if Helpers.is_dropped(control.flp):
         Helpers.log_message('sender', LogActions.DROPPED, control.start_time, SegmentType.DATA, data_seqno, len(data))
     else:
-        # print(f'send/timer put timeout for {data_seqno}')
         Helpers.log_message('sender', LogActions.SEND, control.start_time, SegmentType.DATA, data_seqno, len(data))
         control.socket.send(sent_segment)
 
@@ -99,7 +98,6 @@ class Est_Threads:
                 send_data(control, segment_control, control.seqno, data)
                 index += 1
                 control.seqno = Helpers.add_seqno(control.seqno, len(data))
-
         return
 
     @staticmethod
@@ -123,7 +121,7 @@ class Est_Threads:
                 continue
 
             Helpers.log_message('sender', LogActions.RECEIVE, control.start_time, segment_type, seqno, 0)
-            
+
             # Get the index of the received segment in segments[] via their seqno
             # If the seqno doesnt exist in the map, then this segment should be the very last one of the file.
             # Hence, let received_segment_index be the length of segments[] (why? will explain in next few lines)
@@ -133,6 +131,8 @@ class Est_Threads:
             if segment_control.send_base < received_segment_index:
                 control.lock.acquire()
 
+                # Cancel any timer if exists, since entering this if condition means that
+                # the receiver has received a oldest unacked segment.
                 if control.timer != None: 
                     control.timer.cancel()
                     control.timer = None
@@ -141,7 +141,6 @@ class Est_Threads:
                     print(f'recv put timer on {seqno}')
                     control.timer = threading.Timer(control.rto, Est_Threads.timeout_thread, args=(control, segment_control, seqno))
                     control.timer.start()
-                
                 control.lock.release()
 
                 free_slots = received_segment_index - segment_control.send_base
