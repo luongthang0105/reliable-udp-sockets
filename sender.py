@@ -56,7 +56,9 @@ if __name__ == "__main__":
     print('Finished 2-way Connection Setup')
 
     States.state_est(control)
+    print('Finished Sending Data Reliably')
 
+    States.state_closing(control)
     control.socket.close()  # Close the socket
 
     print("Shut down complete.")

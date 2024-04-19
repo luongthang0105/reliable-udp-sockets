@@ -55,6 +55,24 @@ class States:
         receiver.join()
         send.join()
         # timer.cancel()
+    
+    @staticmethod
+    def state_closing(control: Control):
+        stp_segment = Stp.create_stp_segment(segtype=SegmentType.FIN, seqno=control.seqno)
+
+        receiver = threading.Thread(target=Closing_Threads.receive_thread, args=(control,))
+        receiver.start()
+
+        # Start sending FIN segments
+        control.timer = threading.Timer(control.rto, Closing_Threads.timeout_thread, (control, stp_segment))
+        control.timer.start()
+        
+        send_non_data(control, SegmentType.FIN, stp_segment, control.start_time)
+
+        receiver.join()
+
+        control.timer.cancel()
+        control.timer = None
 
 def send_data(control: Control, segment_control: SegmentControl, data_seqno: int, data: bytes):
     '''
@@ -82,6 +100,12 @@ def send_data(control: Control, segment_control: SegmentControl, data_seqno: int
         Helpers.log_message('sender', LogActions.SEND, control.start_time, SegmentType.DATA, data_seqno, len(data))
         control.socket.send(sent_segment)
 
+def send_non_data(control: Control, segtype: SegmentType, segment: bytes, start_time: float):
+    if Helpers.is_dropped(control.flp):
+        Helpers.log_message('sender', LogActions.DROPPED, start_time, segtype, control.seqno, 0)
+    else:
+        Helpers.log_message('sender', LogActions.SEND, start_time, segtype, control.seqno, 0)
+        control.socket.send(segment)
 
 class Est_Threads:
     @staticmethod 
@@ -91,7 +115,7 @@ class Est_Threads:
         index = 0
         # Number of segments
         num_segments = len(segment_control.segments)
-        while index < num_segments and segment_control.send_base < num_segments:
+        while index < num_segments:
             if index < segment_control.end:
                 data = segment_control.segments[index].data
                 segment_control.segments[index].is_sent = True
@@ -143,13 +167,19 @@ class Est_Threads:
                     control.timer.start()
                 control.lock.release()
 
+                # This signals the receiver has acknowledged everything. We can know exit this thread
+                # and jump to CLOSING state
+                if received_segment_index == segments_len:
+                    control.is_est_state = False
+                    break
+
                 free_slots = received_segment_index - segment_control.send_base
-                # Since "send_base" is set to be equal to "receive_segment_index",
-                # we know that if "receive_segment_index" == len(segments) then 
-                # send_base == len(segments) as well. 
-                # Having send_base equal to that value means that we already sent all data,
-                # which will terminate the send_thread.
+                # Set send_base equal to received_segment_index, means that
+                # we've already acknowledge all segments before this index in segments[] array.
                 segment_control.send_base = received_segment_index
+                # The difference between received_segment_index and send_base gives us
+                # the number of steps the sliding window can slide.
+                # Hence, we add this difference (namely free_slots) to "end" (the end index of the sliding window).
                 segment_control.end += free_slots
                 segment_control.dupACK_cnt = 0
 
@@ -206,8 +236,12 @@ class SynSent_Threads:
                 control.seqno = seqno
 
     def timeout_thread(control: Control, stp_segment: bytes):
+        control.lock.acquire()
+
         control.timer = threading.Timer(control.rto, SynSent_Threads.timeout_thread, (control, stp_segment))
         control.timer.start()
+
+        control.lock.release()
 
         if Helpers.is_dropped(control.flp):
             Helpers.log_message('sender', LogActions.DROPPED, control.start_time, SegmentType.SYN, control.seqno, 0)
@@ -215,4 +249,31 @@ class SynSent_Threads:
             Helpers.log_message('sender', LogActions.SEND, control.start_time, SegmentType.SYN, control.seqno, 0)
             control.socket.send(stp_segment)
 
+class Closing_Threads:
+    def receive_thread(control: Control):
+        # When waiting for FINACK, we're expecting last seqno + 1.
+        expected_seqno = control.seqno + 1
+        while True:
+            response = control.socket.recv(BUF_SIZE)
+            segtype, seqno, _ = Stp.extract_stp_segment(response)
+            
+            if Helpers.is_dropped(control.rlp):
+                Helpers.log_message('sender', LogActions.DROPPED, control.start_time, SegmentType.ACK, seqno, 0)
+                continue
+            
+            Helpers.log_message('sender', LogActions.RECEIVE, control.start_time, SegmentType.ACK, seqno, 0)
+            # If received FINACK, terminates this thread. Otherwise, this must be an ACK from Est state,
+            # we just simply ignore it (of course we logged it out as well)
+            if seqno == expected_seqno:
+                control.timer.cancel()
+                return
 
+    def timeout_thread(control: Control, stp_segment: bytes):
+        control.lock.acquire()
+
+        control.timer = threading.Timer(control.rto, Closing_Threads.timeout_thread, (control, stp_segment))
+        control.timer.start()
+
+        control.lock.release()
+
+        send_non_data(control, SegmentType.FIN, stp_segment, control.start_time)
