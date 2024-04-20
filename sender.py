@@ -43,8 +43,7 @@ if __name__ == "__main__":
 
     sock = setup_socket(sender_port)
 
-    # Use a fixed seed for debugging purpose, NEED TO CHANGED BEFORE SUBMITTED
-    random.seed(1)  # Seed the random number generator
+    random.seed()  # Seed the random number generator
     isn = random.randrange(MAX_SEQNO)
     # isn = 0
 
