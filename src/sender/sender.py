@@ -14,11 +14,11 @@ import socket
 import sys
 import threading
 from dataclasses import dataclass
-from arg_parser import ArgParser
-from helpers import Helpers
-from states import States
-from stp_helpers import Stp
-from sender_prototypes import NUM_ARGS, MAX_SEQNO, Control
+from src.helpers.arg_parser import ArgParser
+from src.helpers.helpers import Helpers
+from src.sender.states import States
+from src.helpers.stp_helpers import Stp
+from src.sender.sender_prototypes import NUM_ARGS, MAX_SEQNO, Control
 
 # =====================Update setup_socket function ========================
 def setup_socket(sender_port):

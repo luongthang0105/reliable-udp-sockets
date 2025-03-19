@@ -1,7 +1,7 @@
 import time
 import random
 from enums import LogActions, SegmentType
-from sender_prototypes import SegmentControl, Segment, MSS
+from src.sender.sender_prototypes import SegmentControl, Segment, MSS
 
 # General helper functions
 MAX_SEQNO = 2**16
