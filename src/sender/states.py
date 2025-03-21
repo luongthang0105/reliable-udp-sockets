@@ -2,7 +2,7 @@ import sys
 import threading
 from src.sender.sender_prototypes import Control, SegmentControl, BUF_SIZE, MSS
 from src.helpers.stp_helpers import Stp
-from enums import SegmentType, LogActions
+from src.enums import SegmentType, LogActions
 from src.helpers.helpers import Helpers
 
 class States:

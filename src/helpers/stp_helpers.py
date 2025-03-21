@@ -1,4 +1,4 @@
-from enums import SegmentType
+from src.enums import SegmentType
 
 # Class Stp (simple transfer protocol) which contains methods that facilitates the use of protocol.
 class Stp:

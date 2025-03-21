@@ -18,7 +18,7 @@ import os
 from dataclasses import dataclass
 from src.helpers.arg_parser import ArgParser
 from src.helpers.helpers import Helpers
-from enums import LogActions, SegmentType
+from src.enums import LogActions, SegmentType
 from src.helpers.stp_helpers import Stp
 
 

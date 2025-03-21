@@ -1,6 +1,7 @@
 import time
 import random
-from enums import LogActions, SegmentType
+import os
+from src.enums import LogActions, SegmentType
 from src.sender.sender_prototypes import SegmentControl, Segment, MSS
 
 # General helper functions
@@ -28,7 +29,7 @@ class Helpers:
             Returns:
                 None
         '''
-        log_file = f"../logs/{user}_log.txt"
+        log_file = os.path.join(os.getcwd(), f"logs/{user}_log.txt")
         # if start_time == 0.0: time_diff = 0.0
         # else: time_diff = 
         # This is kind of inefficient to open this again everytime we wanna write. We can open it once at
@@ -47,7 +48,7 @@ class Helpers:
             Returns:
                 None
         '''
-        log_file = f"../logs/{user}_log.txt"
+        log_file = os.path.join(os.getcwd(), f"logs/{user}_log.txt")
         with open(log_file, 'w') as file:
             pass
         return
