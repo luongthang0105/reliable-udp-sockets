@@ -10,13 +10,19 @@ This project implements a simplified transport protocol (STP) for reliable, uni-
 - **Logging:** Generates detailed sender and receiver logs to track packet transmission, reception, and loss.
 
 ## Usage  
+First, please navigate to the project folder:
+```
+cd reliable-udp-sockets/
+```
+The program would only function if we have both the receiver and the sender run. Let's now run the `receiver` first:
 ### Receiver  
 ```sh
-python receiver.py <receiver_port> <sender_port> <txt_file_received> <max_win>
+python run.py receiver <receiver_port> <sender_port> <txt_file_received> <max_win>
 ```  
+Then the `sender`:
 ### Sender  
 ```sh
-python sender.py <sender_port> <receiver_port> <txt_file_to_send> <max_win> <rto> <flp> <rlp>
+python run.py sender <sender_port> <receiver_port> <txt_file_to_send> <max_win> <rto> <flp> <rlp>
 ```  
 ### Parameters  
 - `max_win`: Window size for the sliding window protocol (multiple of MSS = 1000 bytes).  
@@ -24,6 +30,8 @@ python sender.py <sender_port> <receiver_port> <txt_file_to_send> <max_win> <rto
 - `flp`: Forward loss probability (0 to 1).  
 - `rlp`: Reverse loss probability (0 to 1).  
 
+### Example Usage
+[Demo Video](https://youtu.be/IMCOPBdkpxM)
 ## Implementation Details  
 - **Sender**: Manages file transmission, retransmissions, and packet loss simulation.  
 - **Receiver**: Handles segment reception, ACK generation, and buffering for out-of-order segments.  
