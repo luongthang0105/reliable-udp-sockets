@@ -16,10 +16,10 @@ import sys
 import threading
 import os
 from dataclasses import dataclass
-from arg_parser import ArgParser
-from helpers import Helpers
+from src.helpers.arg_parser import ArgParser
+from src.helpers.helpers import Helpers
 from enums import LogActions, SegmentType
-from stp_helpers import Stp
+from src.helpers.stp_helpers import Stp
 
 
 NUM_ARGS = 4  # Number of command-line arguments
